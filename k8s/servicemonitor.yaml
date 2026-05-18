@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: crypto-ticker-servicemonitor
+  namespace: monitoring             # Must be deployed in the same namespace as Prometheus
+  labels:
+    release: prometheus-stack        # CRITICAL: This label matches the Helm release name
+spec:
+  selector:
+    matchLabels:
+      app: crypto-ticker             # Matches the label on your crypto-ticker-service
+  namespaceSelector:
+    matchNamespaces:
+      - default                      # The namespace where your app service is running
+  endpoints:
+  - port: http                       # We need to give a named port in our service first!
+    path: /metrics
+    interval: 15s
