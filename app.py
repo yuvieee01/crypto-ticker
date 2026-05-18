@@ -318,3 +318,127 @@ def _calculate_sentiment(headlines: list[str], keywords: list[str]) -> float:
     return round(total_polarity / len(matched), 4)
 
 
+# ---------------------------------------------------------------------------
+# Background Loop 1 — Data Ingestion & Sentiment (every FETCH_INTERVAL_SECONDS)
+# ---------------------------------------------------------------------------
+
+async def _ingestion_loop() -> None:
+    """
+    Main data pipeline loop. Runs indefinitely, sleeping between cycles.
+
+    Per cycle:
+      - Fetches live USD prices from CoinGecko.
+      - Scrapes RSS headlines (in thread executor).
+      - Calculates per-asset sentiment from filtered headlines.
+      - Updates in-memory TRACKED_ASSETS state.
+      - Pushes values to Prometheus Gauges.
+      - Records loop duration in SCRAPE_LATENCY_HISTOGRAM.
+
+    All sub-operations are independently wrapped in try/except so that
+    a single upstream failure never terminates the loop or crashes the process.
+    """
+    log.info("Ingestion loop starting — interval=%ds", FETCH_INTERVAL_SECONDS)
+
+    async with httpx.AsyncClient() as client:
+        while True:
+            loop_start = time.monotonic()
+            log.info("Ingestion cycle begin")
+
+            # ── 1. Price Fetch ────────────────────────────────────────────────
+            prices: dict[str, float] = {}
+            try:
+                prices = await _fetch_prices(client)
+                log.info("Fetched prices for %d assets", len(prices))
+            except httpx.HTTPStatusError as exc:
+                log.error(
+                    "CoinGecko returned HTTP %d",
+                    exc.response.status_code,
+                    extra={"endpoint": "coingecko_price", "http_status": exc.response.status_code},
+                )
+                API_ERRORS_COUNTER.labels(
+                    endpoint="coingecko_price",
+                    error_type=f"http_{exc.response.status_code}",
+                ).inc()
+            except httpx.TimeoutException as exc:
+                log.error(
+                    "CoinGecko request timed out: %s",
+                    str(exc),
+                    extra={"endpoint": "coingecko_price"},
+                )
+                API_ERRORS_COUNTER.labels(
+                    endpoint="coingecko_price",
+                    error_type="timeout",
+                ).inc()
+            except httpx.RequestError as exc:
+                log.error(
+                    "CoinGecko network error: %s",
+                    str(exc),
+                    extra={"endpoint": "coingecko_price"},
+                )
+                API_ERRORS_COUNTER.labels(
+                    endpoint="coingecko_price",
+                    error_type="network_error",
+                ).inc()
+
+            # ── 2. RSS Headline Fetch (thread executor) ───────────────────────
+            headlines: list[str] = []
+            try:
+                await _maybe_inject_chaos(endpoint="rss_feed")
+                loop = asyncio.get_running_loop()
+                headlines = await loop.run_in_executor(None, _parse_rss_headlines)
+                API_REQUESTS_COUNTER.labels(endpoint="rss_feed", status="success").inc()
+                log.info("Fetched %d RSS headlines", len(headlines))
+            except Exception as exc:  # feedparser can raise broad exceptions
+                log.error(
+                    "RSS feed parse error: %s",
+                    str(exc),
+                    extra={"endpoint": "rss_feed"},
+                    exc_info=True,
+                )
+                API_ERRORS_COUNTER.labels(
+                    endpoint="rss_feed",
+                    error_type="parse_error",
+                ).inc()
+
+            # ── 3. Per-Asset State Update ─────────────────────────────────────
+            now_iso = datetime.now(tz=timezone.utc).isoformat()
+
+            for asset_id, asset in list(TRACKED_ASSETS.items()):
+                try:
+                    if asset_id in prices:
+                        asset.price_usd = prices[asset_id]
+                        PRICE_GAUGE.labels(ticker=asset_id).set(asset.price_usd)
+
+                    sentiment = _calculate_sentiment(headlines, asset.keywords)
+                    asset.sentiment_score = sentiment
+                    SENTIMENT_GAUGE.labels(ticker=asset_id).set(sentiment)
+
+                    asset.last_updated = now_iso
+
+                    log.info(
+                        "Asset updated: %s price=$%.2f sentiment=%.4f",
+                        asset_id,
+                        asset.price_usd,
+                        asset.sentiment_score,
+                        extra={"ticker": asset_id},
+                    )
+                except (KeyError, ValueError, TypeError, AttributeError) as exc:
+                    log.error(
+                        "State update failed for asset '%s': %s",
+                        asset_id,
+                        str(exc),
+                        extra={"ticker": asset_id},
+                        exc_info=True,
+                    )
+
+            # ── 4. Observe loop duration ──────────────────────────────────────
+            elapsed = time.monotonic() - loop_start
+            SCRAPE_LATENCY_HISTOGRAM.observe(elapsed)
+            log.info(
+                "Ingestion cycle complete",
+                extra={"latency_ms": round(elapsed * 1000, 2)},
+            )
+
+            await asyncio.sleep(FETCH_INTERVAL_SECONDS)
+
+
