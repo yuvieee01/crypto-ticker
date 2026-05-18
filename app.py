@@ -485,3 +485,48 @@ async def _chaos_loop() -> None:
             log.info("Chaos loop cycle complete — no event triggered")
 
 
+# ---------------------------------------------------------------------------
+# FastAPI Application — Lifespan manages background task lifecycle
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """
+    Manages background task lifecycle tied to FastAPI's startup/shutdown.
+    Both tasks are cancelled and awaited cleanly on SIGTERM/SIGINT.
+    """
+    log.info(
+        "Application starting — port=%d fetch_interval=%ds chaos_interval=%ds",
+        PORT,
+        FETCH_INTERVAL_SECONDS,
+        CHAOS_INTERVAL_SECONDS,
+    )
+    ingestion_task = asyncio.create_task(
+        _ingestion_loop(), name="ingestion_loop"
+    )
+    chaos_task = asyncio.create_task(
+        _chaos_loop(), name="chaos_loop"
+    )
+    try:
+        yield
+    finally:
+        log.info("Application shutting down — cancelling background tasks")
+        ingestion_task.cancel()
+        chaos_task.cancel()
+        await asyncio.gather(ingestion_task, chaos_task, return_exceptions=True)
+        log.info("Background tasks stopped — shutdown complete")
+
+
+app = FastAPI(
+    title="Crypto Sentiment & Price Ticker",
+    description=(
+        "Real-time cryptocurrency price and sentiment tracker. "
+        "Exposes Prometheus metrics, structured JSON logs, and a dynamic ticker registry."
+    ),
+    version="1.0.0",
+    lifespan=_lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+
