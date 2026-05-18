@@ -530,3 +530,38 @@ app = FastAPI(
 )
 
 
+# ---------------------------------------------------------------------------
+# Ops Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/healthz",
+    tags=["ops"],
+    summary="Kubernetes liveness / readiness probe",
+    response_description="Service health status",
+)
+async def healthz() -> dict[str, str]:
+    """
+    Returns HTTP 200 + `{"status": "healthy"}` unconditionally.
+    Use for both Kubernetes livenessProbe and readinessProbe.
+    """
+    return {"status": "healthy"}
+
+
+@app.get(
+    "/metrics",
+    tags=["ops"],
+    summary="Prometheus metrics scrape endpoint",
+    response_description="Prometheus text-format metrics",
+)
+async def metrics() -> Response:
+    """
+    Exposes all registered Prometheus metrics in text exposition format.
+    Scrape interval recommended: 15s–30s.
+    """
+    return Response(
+        content=generate_latest(REGISTRY),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
