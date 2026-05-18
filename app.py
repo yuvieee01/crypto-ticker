@@ -677,3 +677,17 @@ async def remove_ticker(coin_id: str) -> dict[str, str]:
     return {"status": "removed", "id": coin_id}
 
 
+# ---------------------------------------------------------------------------
+# Entrypoint — used when running directly (docker run / python app.py)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=PORT,
+        log_config=None,   # Disable Uvicorn's default logger; JSON logger takes over
+        access_log=False,  # Suppress default access log in favour of structured logs
+    )
