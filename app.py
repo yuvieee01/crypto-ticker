@@ -685,7 +685,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app:app",
+        app,
         host="0.0.0.0",
         port=PORT,
         log_config=None,   # Disable Uvicorn's default logger; JSON logger takes over
