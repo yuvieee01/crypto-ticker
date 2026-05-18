@@ -1,0 +1,24 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# requirements.txt — Crypto Sentiment & Price Ticker
+# Pin all production dependencies to exact versions for reproducible builds.
+# Install: pip install -r requirements.txt --no-cache-dir
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Web framework & ASGI server
+fastapi==0.111.1
+uvicorn[standard]==0.30.3
+
+# Async HTTP client (price fetch + future use)
+httpx==0.27.0
+
+# RSS feed parsing
+feedparser==6.0.11
+
+# NLP / sentiment analysis
+textblob==0.18.0.post0
+
+# Prometheus instrumentation
+prometheus-client==0.20.0
+
+# Data validation (FastAPI dependency — pinned for ABI stability)
+pydantic==2.8.2
