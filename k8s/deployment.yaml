@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: crypto-ticker
-        image: crypto-ticker:local
-        imagePullPolicy: Never  # CRITICAL: Tells K8s to use the local image just built
+        image: yuvieee01/crypto-ticker:v1
+        imagePullPolicy: IfNotPresent  # CRITICAL: Tells K8s to use the local image just built
         ports:
         - containerPort: 8000
         resources:
