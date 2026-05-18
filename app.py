@@ -20,3 +20,22 @@ Environment Variables:
   HTTP_TIMEOUT_SECONDS     : Upstream HTTP call timeout (default: 10)
   PORT                     : Uvicorn bind port (default: 8000)
 """
+
+import os
+
+# ---------------------------------------------------------------------------
+# Configuration — all values sourced from environment variables
+# ---------------------------------------------------------------------------
+
+LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
+COINGECKO_BASE_URL: str = os.environ.get(
+    "COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"
+)
+RSS_FEED_URL: str = os.environ.get(
+    "RSS_FEED_URL", "https://cointelegraph.com/rss"
+)
+FETCH_INTERVAL_SECONDS: int = int(os.environ.get("FETCH_INTERVAL_SECONDS", "30"))
+CHAOS_INTERVAL_SECONDS: int = int(os.environ.get("CHAOS_INTERVAL_SECONDS", "45"))
+CHAOS_PROBABILITY: float = float(os.environ.get("CHAOS_PROBABILITY", "0.15"))
+HTTP_TIMEOUT_SECONDS: int = int(os.environ.get("HTTP_TIMEOUT_SECONDS", "10"))
+PORT: int = int(os.environ.get("PORT", "8000"))
