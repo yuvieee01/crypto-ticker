@@ -28,6 +28,15 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    REGISTRY,
+    generate_latest,
+)
+
 # ---------------------------------------------------------------------------
 # Configuration — all values sourced from environment variables
 # ---------------------------------------------------------------------------
@@ -93,5 +102,40 @@ def _build_logger(name: str) -> logging.Logger:
 
 
 log = _build_logger("crypto_ticker")
+
+
+# ---------------------------------------------------------------------------
+# Prometheus Metrics Registry
+# ---------------------------------------------------------------------------
+
+PRICE_GAUGE = Gauge(
+    "crypto_price_usd",
+    "Current cryptocurrency price in USD",
+    labelnames=["ticker"],
+)
+
+SENTIMENT_GAUGE = Gauge(
+    "crypto_sentiment_score",
+    "TextBlob polarity score for latest matching RSS headlines (-1.0 to 1.0)",
+    labelnames=["ticker"],
+)
+
+API_REQUESTS_COUNTER = Counter(
+    "crypto_api_requests_total",
+    "Total successful API calls to upstream endpoints",
+    labelnames=["endpoint", "status"],
+)
+
+API_ERRORS_COUNTER = Counter(
+    "crypto_api_errors_total",
+    "Total upstream API errors — both real network failures and simulated chaos",
+    labelnames=["endpoint", "error_type"],
+)
+
+SCRAPE_LATENCY_HISTOGRAM = Histogram(
+    "crypto_scrape_latency_seconds",
+    "Wall-clock duration of a full ingestion loop cycle",
+    buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0),
+)
 
 
