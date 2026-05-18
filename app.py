@@ -187,3 +187,14 @@ class AddTickerRequest(BaseModel):
         return [kw.strip() for kw in v if kw.strip()]
 
 
+# ---------------------------------------------------------------------------
+# In-Memory State — Protected by asyncio (single-threaded event loop)
+# ---------------------------------------------------------------------------
+
+TRACKED_ASSETS: dict[str, CryptoAsset] = {
+    "bitcoin":  CryptoAsset(coingecko_id="bitcoin",  keywords=["Bitcoin",  "BTC"]),
+    "ethereum": CryptoAsset(coingecko_id="ethereum", keywords=["Ethereum", "ETH"]),
+    "solana":   CryptoAsset(coingecko_id="solana",   keywords=["Solana",   "SOL"]),
+}
+
+
