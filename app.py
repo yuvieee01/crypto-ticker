@@ -442,3 +442,46 @@ async def _ingestion_loop() -> None:
             await asyncio.sleep(FETCH_INTERVAL_SECONDS)
 
 
+# ---------------------------------------------------------------------------
+# Background Loop 2 — Chaos & Error Simulation (every CHAOS_INTERVAL_SECONDS ± jitter)
+# ---------------------------------------------------------------------------
+
+async def _chaos_loop() -> None:
+    """
+    Standalone chaos simulation loop, independent of the ingestion pipeline.
+
+    Each cycle fires _maybe_inject_chaos() against a synthetic endpoint label
+    ('chaos_loop'). Jitter of 0–15 seconds prevents clock-aligned bursts
+    with the ingestion loop.
+    """
+    log.info(
+        "Chaos loop starting — base_interval=%ds probability=%.0f%%",
+        CHAOS_INTERVAL_SECONDS,
+        CHAOS_PROBABILITY * 100,
+    )
+    while True:
+        jitter_s = random.uniform(0.0, 15.0)
+        await asyncio.sleep(CHAOS_INTERVAL_SECONDS + jitter_s)
+
+        if random.random() < CHAOS_PROBABILITY:
+            event = random.choice(_CHAOS_CATALOGUE)
+            latency_s = random.uniform(3.0, 5.0)
+            log.critical(
+                "[CHAOS] Standalone failure event: %s",
+                event["message"],
+                extra={
+                    "chaos_event":  event["error_type"],
+                    "endpoint":     "chaos_loop",
+                    "http_status":  event["http_code"],
+                    "latency_ms":   round(latency_s * 1000, 2),
+                },
+            )
+            API_ERRORS_COUNTER.labels(
+                endpoint="chaos_loop",
+                error_type=event["error_type"],
+            ).inc()
+            await asyncio.sleep(latency_s)
+        else:
+            log.info("Chaos loop cycle complete — no event triggered")
+
+
