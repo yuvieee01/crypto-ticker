@@ -152,3 +152,38 @@ SCRAPE_LATENCY_HISTOGRAM = Histogram(
 )
 
 
+# ---------------------------------------------------------------------------
+# Domain Models
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CryptoAsset:
+    """Mutable state container for a single tracked cryptocurrency."""
+    coingecko_id: str
+    keywords: list[str]
+    price_usd: float = 0.0
+    sentiment_score: float = 0.0
+    last_updated: str = ""
+
+
+class AddTickerRequest(BaseModel):
+    """Payload for POST /api/ticker."""
+    id: str
+    keywords: list[str]
+
+    @field_validator("id")
+    @classmethod
+    def _normalize_id(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not v:
+            raise ValueError("Coin ID must be a non-empty string.")
+        return v
+
+    @field_validator("keywords")
+    @classmethod
+    def _validate_keywords(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("At least one keyword is required.")
+        return [kw.strip() for kw in v if kw.strip()]
+
+
