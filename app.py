@@ -198,3 +198,53 @@ TRACKED_ASSETS: dict[str, CryptoAsset] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Chaos Event Catalogue
+# ---------------------------------------------------------------------------
+
+_CHAOS_CATALOGUE: list[dict[str, Any]] = [
+    {
+        "error_type": "rate_limit",
+        "http_code":  429,
+        "message":    "Simulated HTTP 429 Rate Limit — CoinGecko upstream throttled",
+    },
+    {
+        "error_type": "gateway_timeout",
+        "http_code":  504,
+        "message":    "Simulated HTTP 504 Gateway Timeout — upstream mesh unresponsive",
+    },
+]
+
+
+async def _maybe_inject_chaos(endpoint: str) -> None:
+    """
+    Probabilistically fires a chaos event for `endpoint`.
+
+    On trigger:
+      1. Emits a CRITICAL JSON log line (visible to Datadog/alertmanager).
+      2. Increments `crypto_api_errors_total` with the chaos error type.
+      3. Sleeps 3–5 seconds to simulate degraded network conditions.
+    """
+    if random.random() >= CHAOS_PROBABILITY:
+        return
+
+    event = random.choice(_CHAOS_CATALOGUE)
+    latency_s: float = random.uniform(3.0, 5.0)
+
+    log.critical(
+        event["message"],
+        extra={
+            "chaos_event":  event["error_type"],
+            "endpoint":     endpoint,
+            "http_status":  event["http_code"],
+            "latency_ms":   round(latency_s * 1000, 2),
+        },
+    )
+    API_ERRORS_COUNTER.labels(
+        endpoint=endpoint,
+        error_type=event["error_type"],
+    ).inc()
+
+    await asyncio.sleep(latency_s)
+
+
