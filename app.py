@@ -565,3 +565,115 @@ async def metrics() -> Response:
     )
 
 
+# ---------------------------------------------------------------------------
+# Data Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/tickers",
+    tags=["data"],
+    summary="List all tracked assets with live data",
+)
+async def get_tickers() -> dict[str, Any]:
+    """
+    Returns the current in-memory state for every tracked cryptocurrency,
+    including price, sentiment score, and last-updated timestamp.
+    """
+    return {
+        asset_id: {
+            "coingecko_id":     asset.coingecko_id,
+            "keywords":         asset.keywords,
+            "price_usd":        asset.price_usd,
+            "sentiment_score":  asset.sentiment_score,
+            "last_updated":     asset.last_updated,
+        }
+        for asset_id, asset in TRACKED_ASSETS.items()
+    }
+
+
+@app.get(
+    "/api/tickers/{coin_id}",
+    tags=["data"],
+    summary="Get a single tracked asset by CoinGecko ID",
+)
+async def get_ticker(coin_id: str) -> dict[str, Any]:
+    """Returns state for a single asset. 404 if not currently tracked."""
+    coin_id = coin_id.lower().strip()
+    if coin_id not in TRACKED_ASSETS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset '{coin_id}' is not currently tracked.",
+        )
+    asset = TRACKED_ASSETS[coin_id]
+    return {
+        "coingecko_id":     asset.coingecko_id,
+        "keywords":         asset.keywords,
+        "price_usd":        asset.price_usd,
+        "sentiment_score":  asset.sentiment_score,
+        "last_updated":     asset.last_updated,
+    }
+
+
+@app.post(
+    "/api/ticker",
+    status_code=status.HTTP_201_CREATED,
+    tags=["data"],
+    summary="Dynamically register a new cryptocurrency to track",
+)
+async def add_ticker(request: AddTickerRequest) -> dict[str, str]:
+    """
+    Adds a new `CryptoAsset` to the in-memory registry. The asset will be
+    included in the very next ingestion loop cycle (within FETCH_INTERVAL_SECONDS).
+
+    Example payload:
+    ```json
+    {"id": "cardano", "keywords": ["Cardano", "ADA"]}
+    ```
+    """
+    coin_id = request.id  # already normalized by Pydantic validator
+
+    if coin_id in TRACKED_ASSETS:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Asset '{coin_id}' is already being tracked.",
+        )
+
+    TRACKED_ASSETS[coin_id] = CryptoAsset(
+        coingecko_id=coin_id,
+        keywords=request.keywords,
+    )
+    log.info(
+        "New asset registered: %s keywords=%s",
+        coin_id,
+        request.keywords,
+        extra={"ticker": coin_id},
+    )
+    return {"status": "added", "id": coin_id}
+
+
+@app.delete(
+    "/api/ticker/{coin_id}",
+    tags=["data"],
+    summary="Remove a tracked cryptocurrency by CoinGecko ID",
+)
+async def remove_ticker(coin_id: str) -> dict[str, str]:
+    """
+    Removes an asset from the tracking registry immediately.
+    Its Prometheus gauge labels will persist until the process restarts
+    (standard Prometheus label lifecycle behaviour).
+    """
+    coin_id = coin_id.lower().strip()
+    if coin_id not in TRACKED_ASSETS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset '{coin_id}' is not currently tracked.",
+        )
+    del TRACKED_ASSETS[coin_id]
+    log.info(
+        "Asset deregistered: %s",
+        coin_id,
+        extra={"ticker": coin_id},
+    )
+    return {"status": "removed", "id": coin_id}
+
+
