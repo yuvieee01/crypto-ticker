@@ -21,13 +21,24 @@ Environment Variables:
   PORT                     : Uvicorn bind port (default: 8000)
 """
 
+from __future__ import annotations
+
+import asyncio
 import json
 import logging
 import os
+import random
 import sys
+import time
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, AsyncIterator
 
+import feedparser
+import httpx
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import Response
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
@@ -36,6 +47,8 @@ from prometheus_client import (
     REGISTRY,
     generate_latest,
 )
+from pydantic import BaseModel, field_validator
+from textblob import TextBlob
 
 # ---------------------------------------------------------------------------
 # Configuration — all values sourced from environment variables
