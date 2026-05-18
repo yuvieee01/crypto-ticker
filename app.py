@@ -248,3 +248,73 @@ async def _maybe_inject_chaos(endpoint: str) -> None:
     await asyncio.sleep(latency_s)
 
 
+# ---------------------------------------------------------------------------
+# Upstream Data Helpers
+# ---------------------------------------------------------------------------
+
+async def _fetch_prices(client: httpx.AsyncClient) -> dict[str, float]:
+    """
+    GETs USD prices for all currently tracked assets from CoinGecko.
+
+    Returns:
+        Mapping of {coingecko_id: price_usd}.
+
+    Raises:
+        httpx.HTTPStatusError: On 4xx/5xx HTTP responses.
+        httpx.RequestError:    On connection/timeout failures.
+        KeyError:              If the response JSON is missing expected keys.
+    """
+    ids_param = ",".join(TRACKED_ASSETS.keys())
+    url = f"{COINGECKO_BASE_URL}/simple/price"
+    params: dict[str, str] = {"ids": ids_param, "vs_currencies": "usd"}
+
+    await _maybe_inject_chaos(endpoint="coingecko_price")
+
+    response = await client.get(url, params=params, timeout=HTTP_TIMEOUT_SECONDS)
+    response.raise_for_status()
+
+    API_REQUESTS_COUNTER.labels(endpoint="coingecko_price", status="success").inc()
+
+    raw: dict[str, Any] = response.json()
+    return {
+        coin_id: float(payload["usd"])
+        for coin_id, payload in raw.items()
+        if isinstance(payload, dict) and "usd" in payload
+    }
+
+
+def _parse_rss_headlines() -> list[str]:
+    """
+    Synchronously fetches and parses the configured RSS feed.
+    Designed to run inside `asyncio.get_running_loop().run_in_executor()`
+    to avoid blocking the event loop.
+
+    Returns:
+        List of headline strings (entry titles). Empty list on parse failure.
+    """
+    feed = feedparser.parse(RSS_FEED_URL)
+    return [
+        entry.title
+        for entry in feed.entries
+        if hasattr(entry, "title") and entry.title
+    ]
+
+
+def _calculate_sentiment(headlines: list[str], keywords: list[str]) -> float:
+    """
+    Filters `headlines` by `keywords`, computes mean TextBlob polarity.
+
+    Returns:
+        Float in [-1.0, 1.0]. Returns 0.0 (neutral) if no headline matches.
+    """
+    matched: list[str] = [
+        h for h in headlines
+        if any(kw.lower() in h.lower() for kw in keywords)
+    ]
+    if not matched:
+        return 0.0
+
+    total_polarity = sum(TextBlob(h).sentiment.polarity for h in matched)
+    return round(total_polarity / len(matched), 4)
+
+
