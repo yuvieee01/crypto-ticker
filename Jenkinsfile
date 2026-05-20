@@ -14,8 +14,8 @@ pipeline {
         stage('Lint & Code Quality') {
             steps {
                 echo 'Checking Python code quality...'
-                // A quick check to make sure there are no fatal syntax errors in your Python code
-                sh 'pip install flake8 && flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
+                // Using --break-system-packages because Jenkins runs in an isolated container
+                sh 'pip install flake8 --break-system-packages && flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
             }
         }
 
