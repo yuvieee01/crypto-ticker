@@ -43,13 +43,10 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 echo 'Updating the application in the cluster...'
-                // Uses the Kubeconfig file you uploaded in Step 4.1
-                configFileProvider([configFile(fileId: "${KUBECONFIG_CRED}", variable: 'KUBECONFIG')]) {
-                    // Update the deployment image to the newly built tag
-                    sh "kubectl set image deployment/crypto-ticker-deployment crypto-ticker-container=${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG} --kubeconfig=${KUBECONFIG}"
-                    
-                    // Apply any manifest updates (like service monitors or configuration updates)
-                    sh "kubectl apply -f k8s/ --kubeconfig=${KUBECONFIG}"
+                // This utilizes your cluster's kubeconfig file securely stored in Jenkins credentials
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                    sh 'kubectl apply -f k8s/deployment.yaml --kubeconfig=${KUBECONFIG}'
+                    sh 'kubectl apply -f k8s/service.yaml --kubeconfig=${KUBECONFIG}'
                 }
             }
         }
