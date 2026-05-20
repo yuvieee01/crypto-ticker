@@ -14,8 +14,7 @@ pipeline {
         stage('Lint & Code Quality') {
             steps {
                 echo 'Checking Python code quality...'
-                // Using --break-system-packages because Jenkins runs in an isolated container
-                sh 'pip install flake8 --break-system-packages && flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
+                sh 'pip install flake8 --break-system-packages && python3 -m flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
             }
         }
 
