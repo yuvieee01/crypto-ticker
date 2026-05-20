@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: crypto-ticker             # Matches the label on your crypto-ticker-service
   namespaceSelector:
-    matchNamespaces:
+    matchNames:
       - default                      # The namespace where your app service is running
   endpoints:
   - port: http                       # We need to give a named port in our service first!
