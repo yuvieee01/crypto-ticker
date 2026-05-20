@@ -42,11 +42,19 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                echo 'Updating the application in the cluster...'
-                // This utilizes your cluster's kubeconfig file securely stored in Jenkins credentials
+                echo 'Setting up kubectl and updating the application in the cluster...'
                 withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                    sh 'kubectl apply -f k8s/deployment.yaml --kubeconfig=${KUBECONFIG}'
-                    sh 'kubectl apply -f k8s/service.yaml --kubeconfig=${KUBECONFIG}'
+                    sh '''
+                        # 1. Download the latest stable kubectl binary
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+                        # 2. Make the binary executable
+                        chmod +x ./kubectl
+                        
+                        # 3. Use the local ./kubectl binary to apply your manifests
+                        ./kubectl apply -f k8s/deployment.yaml --kubeconfig=${KUBECONFIG}
+                        ./kubectl apply -f k8s/service.yaml --kubeconfig=${KUBECONFIG}
+                    '''
                 }
             }
         }
