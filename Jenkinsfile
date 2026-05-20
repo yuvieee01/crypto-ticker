@@ -22,7 +22,7 @@ pipeline {
             steps {
                 echo "Building version ${IMAGE_TAG}..."
                 script {
-                    def customImage = docker.build("${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG}")
+                    customImage = docker.build("${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG}")
                 }
             }
         }
