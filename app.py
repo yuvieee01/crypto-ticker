@@ -151,6 +151,13 @@ SCRAPE_LATENCY_HISTOGRAM = Histogram(
     buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0),
 )
 
+# Define the latency histogram with custom duration buckets (in seconds)
+API_LATENCY_HISTOGRAM = Histogram(
+    'crypto_api_request_duration_seconds',
+    'Time spent waiting for upstream API and RSS feed responses',
+    labelnames=['endpoint'],
+    buckets=(0.5, 1.0, 2.0, 3.5, 5.0, 7.5, float("inf"))
+)
 
 # ---------------------------------------------------------------------------
 # Domain Models
@@ -268,12 +275,20 @@ async def _fetch_prices(client: httpx.AsyncClient) -> dict[str, float]:
     url = f"{COINGECKO_BASE_URL}/simple/price"
     params: dict[str, str] = {"ids": ids_param, "vs_currencies": "usd"}
 
-    await _maybe_inject_chaos(endpoint="coingecko_price")
+    endpoint_name = "coingecko_price"
 
-    response = await client.get(url, params=params, timeout=HTTP_TIMEOUT_SECONDS)
-    response.raise_for_status()
+    # Start the timer bucket before entering the execution logic
+    with API_LATENCY_HISTOGRAM.labels(endpoint=endpoint_name).time():
+        
+        # 1. Fires potential chaos (adds 3-5s sleep if probability triggers)
+        await _maybe_inject_chaos(endpoint=endpoint_name)
 
-    API_REQUESTS_COUNTER.labels(endpoint="coingecko_price", status="success").inc()
+        # 2. Executes the actual network request
+        response = await client.get(url, params=params, timeout=HTTP_TIMEOUT_SECONDS)
+        response.raise_for_status()
+
+    # Timer stops clean right here when exiting the 'with' block
+    API_REQUESTS_COUNTER.labels(endpoint=endpoint_name, status="success").inc()
 
     raw: dict[str, Any] = response.json()
     return {
