@@ -5,9 +5,9 @@ variable "aws_region" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type (t3.micro for Free Tier)"
+  description = "EC2 instance type (t3.small for reliable Jenkins builds)"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "key_name" {

@@ -64,7 +64,7 @@ pipeline {
                             docker compose up -d
 
                             echo "Deployment complete. Stack is running."
-                        ENDSSH
+ENDSSH
                     """
                 }
             }
