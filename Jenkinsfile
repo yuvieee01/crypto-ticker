@@ -14,7 +14,7 @@ pipeline {
         stage('Lint & Code Quality') {
             steps {
                 echo 'Checking Python code quality...'
-                sh 'pip install flake8 --break-system-packages && python3 -m flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
+                sh 'pip install flake8 && python3 -m flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics'
             }
         }
 
