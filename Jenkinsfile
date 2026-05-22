@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-        // CHANGE THIS TO YOUR ACTUAL DOCKER HUB USERNAME
         REGISTRY_USER   = 'yuvieee01'
-
         IMAGE_NAME      = 'crypto-sentiment-ticker'
-        IMAGE_TAG       = "${BUILD_NUMBER}" // Automatically uses the Jenkins build number as the tag
-        KUBECONFIG_CRED = 'kubeconfig-credentials' // This matches the ID you saved in Step 4.1
+        IMAGE_TAG       = "${BUILD_NUMBER}"
+        EC2_USER        = 'ubuntu'
+        EC2_HOST        = credentials('ec2-host')          // EC2 public IP stored in Jenkins credentials
+        SSH_KEY         = credentials('ec2-ssh-key')       // EC2 .pem private key file stored in Jenkins credentials
     }
 
     stages {
@@ -31,7 +31,6 @@ pipeline {
             steps {
                 echo 'Publishing image to Docker Hub...'
                 script {
-                    // Uses the Docker Hub credentials you saved in Step 4.1
                     docker.withRegistry('', 'docker-hub-credentials') {
                         customImage.push()
                         customImage.push('latest')
@@ -40,21 +39,33 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy to EC2') {
             steps {
-                echo 'Setting up kubectl and updating the application in the cluster...'
-                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                    sh '''
-                        # 1. Download the latest stable kubectl binary
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                echo 'Deploying stack to EC2 via docker-compose...'
+                sshagent(credentials: ['ec2-ssh-key']) {
+                    sh """
+                        # Copy project files to EC2
+                        scp -o StrictHostKeyChecking=no -r \
+                            docker-compose.yml \
+                            prometheus.yml \
+                            grafana/ \
+                            ${EC2_USER}@${EC2_HOST}:~/crypto-ticker/
 
-                        # 2. Make the binary executable
-                        chmod +x ./kubectl
-                        
-                        # 3. Use the local ./kubectl binary to apply your manifests
-                        ./kubectl apply -f k8s/deployment.yaml --kubeconfig=${KUBECONFIG}
-                        ./kubectl apply -f k8s/service.yaml --kubeconfig=${KUBECONFIG}
-                    '''
+                        # SSH into EC2 and deploy
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+                            cd ~/crypto-ticker
+
+                            # Update the app image to the freshly pushed version
+                            export APP_IMAGE=${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG}
+
+                            # Pull the latest image and restart the stack
+                            docker compose pull 2>/dev/null || true
+                            docker compose down --remove-orphans
+                            docker compose up -d
+
+                            echo "Deployment complete. Stack is running."
+                        ENDSSH
+                    """
                 }
             }
         }

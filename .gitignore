@@ -134,3 +134,15 @@ Thumbs.db:encryptable
 
 # Docker/Compose local overrides
 docker-compose.override.yml
+
+# Credentials & Keys
+*.csv
+*.pem
+CA2_Crypto_accessKeys.csv
+crypto-devops-key.pem
+
+# Terraform files
+.terraform/
+terraform.tfstate*
+*.tfstate*
+.terraform.lock.hcl

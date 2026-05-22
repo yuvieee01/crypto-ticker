@@ -1,0 +1,6 @@
+app_url = "http://100.54.74.4:8000"
+grafana_url = "http://100.54.74.4:3000"
+jenkins_url = "http://100.54.74.4:8080"
+prometheus_url = "http://100.54.74.4:9090"
+public_ip = "100.54.74.4"
+ssh_command = "ssh -i crypto-devops-key.pem ubuntu@100.54.74.4"

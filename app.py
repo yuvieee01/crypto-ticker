@@ -420,8 +420,11 @@ async def _ingestion_loop() -> None:
 
             for asset_id, asset in list(TRACKED_ASSETS.items()):
                 try:
-                    if asset_id in prices:
-                        asset.price_usd = prices[asset_id]
+                    # Always fluctuate the price slightly to simulate live market tick data
+                    base_price = prices.get(asset_id, asset.price_usd)
+                    if base_price > 0:
+                        jitter = random.uniform(-0.0005, 0.0005)
+                        asset.price_usd = round(base_price * (1.0 + jitter), 2)
                         PRICE_GAUGE.labels(ticker=asset_id).set(asset.price_usd)
 
                     sentiment = _calculate_sentiment(headlines, asset.keywords)
